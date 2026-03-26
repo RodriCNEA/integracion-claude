@@ -1,0 +1,36 @@
+{
+  "db_file": "mediciones.db",
+  "watchdog_sec": 5.0,
+  "autofin_min": 30.0,
+  "alarm_debounce": 10,
+  "alarm_cooldown": 30,
+  "plot_title": "RPM vs Tiempo",
+  "gauge_title": "Velocímetro",
+  "gauge_min": 0.0,
+  "gauge_max": 5000.0,
+  "plot_ymin": 0.0,
+  "plot_ymax": 5000.0,
+  "window_seconds": 120,
+  "brevo_api_key": "",
+  "brevo_email": "",
+  "alarms": {
+    "rpm_max": {
+      "enabled": false,
+      "threshold": 2000.0,
+      "debounce": 10,
+      "cooldown_min": 30
+    },
+    "rpm_min": {
+      "enabled": false,
+      "threshold": 100.0,
+      "debounce": 10,
+      "cooldown_min": 30
+    },
+    "temp_max_alta": {
+      "enabled": true,
+      "threshold": 90.0,
+      "debounce": 10,
+      "cooldown_min": 30
+    }
+  }
+}

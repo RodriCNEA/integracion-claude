@@ -1,0 +1,12 @@
+{
+  "admin": {
+    "password": "centrifuga2024",
+    "email": "",
+    "alerts": true,
+    "perms": {
+      "rpm": true,
+      "temp": true,
+      "status": true
+    }
+  }
+}
