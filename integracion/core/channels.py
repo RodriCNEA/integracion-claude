@@ -221,15 +221,29 @@ class UDPChannel(DataChannel):
     """
     Escucha datagramas UDP en un puerto local.
     Ideal para dispositivos WiFi (ESP32, Arduino WiFi, etc.).
+
+    Diseñado para funcionar 24/7 con conexiones inestables:
+      - Si el adaptador WiFi se desconecta brevemente, el read_loop detecta
+        el OSError y reintenta el bind automáticamente (auto-rebind).
+      - close() usa socket.shutdown() antes de close() para liberar el puerto
+        inmediatamente, incluso si el hilo lector está bloqueado en recvfrom().
+      - SO_REUSEADDR garantiza que el puerto puede reabrirse sin esperar TIME_WAIT.
     """
 
     def __init__(self) -> None:
         super().__init__()
         self._sock: Optional[socket.socket] = None
         self._bound_port: Optional[int] = None
+        # Señal interna para que el read_loop intente un rebind sin salir del loop
+        self._request_rebind = False
 
     @property
     def is_open(self) -> bool:
+        """
+        True si el socket UDP está abierto y listo para recibir datos.
+        No depende del hilo lector: el socket puede estar abierto sin que
+        start_reading() haya sido llamado aún (ventana entre connect() e Iniciar).
+        """
         return self._sock is not None
 
     @property
@@ -239,14 +253,24 @@ class UDPChannel(DataChannel):
     def open(self, address: str, **kwargs) -> bool:
         """
         address: número de puerto UDP como string o entero.
-        Ejemplo: channel.open("4210")
+        Cierra el socket previo si existe antes de abrir uno nuevo.
         """
+        # Cerrar socket anterior si quedó colgado
+        if self._sock:
+            self._force_close_socket()
+
         try:
             port = int(address)
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # En Linux/Mac: SO_REUSEPORT permite múltiples sockets en el mismo puerto
+            if hasattr(socket, "SO_REUSEPORT"):
+                try:
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                except (AttributeError, OSError):
+                    pass
             sock.bind(("0.0.0.0", port))
-            sock.settimeout(0.5)   # Para que el _read_loop pueda salir limpiamente
+            sock.settimeout(0.5)
             self._sock = sock
             self._bound_port = port
             return True
@@ -256,28 +280,119 @@ class UDPChannel(DataChannel):
             return False
 
     def close(self) -> None:
-        self.stop_reading()
-        if self._sock:
-            try:
-                self._sock.close()
-            except Exception:
-                pass
-            self._sock = None
+        """
+        Cierra el canal limpiamente.
+        Usa shutdown() antes de close() para desbloquear el recvfrom() del hilo
+        lector inmediatamente, sin esperar el timeout de 0.5s.
+        El puerto queda libre para que otro bind() pueda usarlo de inmediato.
+        """
+        self._running = False      # Señal al hilo para que salga
+        self._force_close_socket() # Desbloquea recvfrom() y libera el puerto
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=2.0)
+            self._thread = None
         self._bound_port = None
 
+    def _force_close_socket(self) -> None:
+        """Cierra el socket con shutdown() para liberar el puerto inmediatamente."""
+        sock = self._sock
+        self._sock = None
+        if sock:
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except Exception:
+                pass
+            try:
+                sock.close()
+            except Exception:
+                pass
+
+    def _rebind(self) -> bool:
+        """
+        Intenta cerrar y reabrir el socket en el mismo puerto.
+        Llamado desde el read_loop cuando se detecta un error de red.
+        Retorna True si el rebind fue exitoso.
+        """
+        port = self._bound_port
+        if not port:
+            return False
+
+        print(f"[UDPChannel] Intentando re-bind en UDP:{port}...")
+        self._force_close_socket()
+        time.sleep(1.5)  # Dar tiempo al OS para liberar el puerto
+
+        if not self._running:
+            return False  # El canal fue cerrado externamente, no rebindear
+
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if hasattr(socket, "SO_REUSEPORT"):
+                try:
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                except (AttributeError, OSError):
+                    pass
+            sock.bind(("0.0.0.0", port))
+            sock.settimeout(0.5)
+            self._sock = sock
+            self._bound_port = port
+            print(f"[UDPChannel] Re-bind exitoso en UDP:{port}")
+            return True
+        except Exception as e:
+            print(f"[UDPChannel] Re-bind fallido en UDP:{port}: {e}")
+            self._sock = None
+            return False
+
     def _read_loop(self) -> None:
-        while self._running and self._sock:
+        """
+        Bucle de lectura con recuperación automática ante errores de red.
+        Si el adaptador WiFi se desconecta y reconecta, el socket puede quedar
+        inválido. En ese caso, se intenta un re-bind hasta 3 veces antes de
+        rendirse y salir del loop.
+        """
+        consecutive_oserrors = 0
+        max_rebind_attempts  = 3
+
+        while self._running:
             try:
                 if self._paused:
                     time.sleep(0.05)
                     continue
+                if self._sock is None:
+                    time.sleep(0.1)
+                    continue
+
                 data, _ = self._sock.recvfrom(1024)
+                consecutive_oserrors = 0          # Éxito → resetear contador
                 line = data.decode("utf-8", errors="ignore").strip()
                 self._dispatch(line)
+
             except socket.timeout:
-                continue   # Normal: el timeout permite chequear self._running
-            except OSError:
-                break      # Socket cerrado externamente
+                # Normal: el timeout de 0.5s permite chequear _running cada medio segundo
+                continue
+
+            except OSError as e:
+                if not self._running:
+                    break  # Cierre intencional via close(), salir limpiamente
+                consecutive_oserrors += 1
+                print(f"[UDPChannel] OSError #{consecutive_oserrors}: {e}")
+
+                if consecutive_oserrors <= max_rebind_attempts:
+                    if self._rebind():
+                        consecutive_oserrors = 0
+                    else:
+                        time.sleep(2.0)
+                else:
+                    print(f"[UDPChannel] Máximo de re-binds alcanzado. Cerrando loop.")
+                    break
+
             except Exception as e:
-                print(f"[UDPChannel] Error de lectura: {e}")
+                print(f"[UDPChannel] Error inesperado: {e}")
                 break
+
+        # Si salimos del loop por error (no por close() intencional),
+        # liberar el socket para que is_open=False y el watchdog pueda
+        # detectar la situación y disparar _try_reconnect().
+        if self._running:
+            print(f"[UDPChannel] Hilo lector terminó inesperadamente — liberando socket.")
+            self._force_close_socket()
