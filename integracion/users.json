@@ -1,7 +1,17 @@
 {
   "admin": {
     "password": "centrifuga2024",
-    "email": "",
+    "email": "rodrigodeiuliis@cnea.gob.ar",
+    "alerts": true,
+    "perms": {
+      "rpm": true,
+      "temp": true,
+      "status": true
+    }
+  },
+  "pancho": {
+    "password": "pancho",
+    "email": "rdeiuliis@estudiantes.unsam.edu.ar",
     "alerts": true,
     "perms": {
       "rpm": true,

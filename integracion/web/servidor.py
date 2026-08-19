@@ -80,251 +80,316 @@ LOGIN_HTML = """
 
 DASHBOARD_HTML = """
 <!DOCTYPE html><html lang="es"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Monitor de Centrífugas</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#0f1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Monitor — Centrífugas</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Segoe UI',sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh}
-  
-  /* Header */
-  .hdr{display:flex;justify-content:space-between;align-items:center;
-       background:#1a1d27;border-bottom:1px solid #2a2d3a;padding:14px 24px}
-  .hdr-title{font-size:1.1rem;font-weight:600;color:#e2e8f0}
-  .hdr-title span{color:#6366f1}
-  .hdr-right{display:flex;align-items:center;gap:12px}
-  .tag-user{background:#1e2235;border:1px solid #2a2d3a;border-radius:20px;
-            padding:5px 14px;font-size:.82rem;color:#94a3b8}
-  .btn{padding:7px 16px;border-radius:8px;border:none;font-size:.85rem;
-       font-weight:600;cursor:pointer;text-decoration:none;display:inline-block}
-  .btn-logout{background:#2d1f1f;color:#f87171;border:1px solid #3d2020}
-  .btn-logout:hover{background:#3d2020}
+:root{
+  --bg:#0f1117;--bg2:#1a1d27;--bg3:#10131c;
+  --border:#2a2d3a;--accent:#6366f1;
+  --green:#34d399;--red:#f87171;--amber:#fbbf24;
+  --txt:#e2e8f0;--muted:#64748b;
+  --r:12px;--r-sm:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;
+           background:var(--bg);color:var(--txt);font-size:16px}
 
-  /* Layout */
-  .main{padding:20px 24px;display:flex;flex-direction:column;gap:24px}
+/* ── HEADER ── */
+.hdr{
+  position:sticky;top:0;z-index:50;
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:12px 16px;gap:10px;
+}
+.hdr-logo{font-size:1rem;font-weight:700;white-space:nowrap}
+.hdr-logo span{color:var(--accent)}
+.hdr-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.chip{background:var(--bg3);border:1px solid var(--border);border-radius:20px;
+      padding:4px 12px;font-size:.8rem;color:var(--muted);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;
+     padding:8px 14px;border-radius:var(--r-sm);border:none;
+     font-size:.85rem;font-weight:600;cursor:pointer;text-decoration:none;
+     min-height:36px;transition:opacity .15s}
+.btn:active{opacity:.75}
+.btn-cfg{background:var(--bg3);color:var(--txt);border:1px solid var(--border)}
+.btn-out{background:#2d1f1f;color:var(--red);border:1px solid #3d2020}
 
-  /* Alarma banner */
-  .alarm-banner{display:none;background:#2d1515;border:1px solid #7f1d1d;
-                border-radius:12px;padding:14px 20px;color:#fca5a5;
-                font-weight:600;font-size:.95rem;animation:blink 1.2s infinite}
-  @keyframes blink{0%,100%{opacity:1}50%{opacity:.6}}
+/* ── MAIN ── */
+.main{padding:16px;display:flex;flex-direction:column;gap:20px;max-width:1200px;margin:0 auto}
 
-  /* Bloque por máquina */
-  .maq-block{background:#1a1d27;border:1px solid #2a2d3a;border-radius:16px;padding:20px}
-  .maq-title{font-size:1rem;font-weight:600;color:#e2e8f0;margin-bottom:16px;
-             display:flex;align-items:center;gap:10px}
-  .maq-title .dot{width:8px;height:8px;border-radius:50%;background:#6366f1}
-  .maq-title .badge{background:#1e2235;border:1px solid #2a2d3a;border-radius:6px;
-                    padding:2px 10px;font-size:.75rem;color:#64748b;font-weight:400}
+/* ── ALARM BANNER ── */
+.alarm-banner{
+  display:none;
+  background:#450a0a;border:2px solid #7f1d1d;border-radius:var(--r);
+  padding:14px 16px;color:#fca5a5;font-weight:700;
+  font-size:.95rem;line-height:1.4;
+  animation:pulse-border 1.4s ease-in-out infinite;
+}
+.alarm-banner .alarm-icon{font-size:1.3rem;margin-right:8px;vertical-align:middle}
+@keyframes pulse-border{
+  0%,100%{border-color:#7f1d1d;box-shadow:0 0 0 0 rgba(127,29,29,.4)}
+  50%{border-color:#dc2626;box-shadow:0 0 0 6px rgba(127,29,29,0)}
+}
 
-  /* Grilla de cards */
-  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px}
-  .card{background:#0f1117;border:1px solid #2a2d3a;border-radius:12px;padding:16px;text-align:center}
-  .card-label{font-size:.75rem;color:#64748b;text-transform:uppercase;
-              letter-spacing:.06em;margin-bottom:8px}
-  .card-value{font-size:2rem;font-weight:700;line-height:1}
-  .card-unit{font-size:.75rem;color:#64748b;margin-top:4px}
-  .card-avg{font-size:.78rem;color:#475569;margin-top:8px;padding-top:8px;
-            border-top:1px solid #1e2235}
+/* ── MACHINE BLOCK ── */
+.maq-block{background:var(--bg2);border:1px solid var(--border);
+           border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:14px}
+.maq-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.maq-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex-shrink:0}
+.maq-name{font-size:1rem;font-weight:700}
+.maq-badge{background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+           padding:2px 10px;font-size:.72rem;color:var(--muted);margin-left:auto}
+.maq-rec-badge{background:#064e3b;color:var(--green);
+               border:1px solid #065f46;border-radius:6px;
+               padding:2px 10px;font-size:.72rem;font-weight:600}
 
-  /* Estados booleanos */
-  .status-ok{color:#34d399}.status-err{color:#f87171}
-  .pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:600}
-  .pill-ok{background:#064e3b;color:#34d399}
-  .pill-err{background:#450a0a;color:#f87171}
+/* ── CARDS GRID ── */
+.cards{display:grid;gap:10px;
+       grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+.card{background:var(--bg3);border:1px solid var(--border);
+      border-radius:var(--r);padding:14px 10px;text-align:center;
+      transition:border-color .3s}
+.card-lbl{font-size:.7rem;color:var(--muted);text-transform:uppercase;
+          letter-spacing:.06em;margin-bottom:6px}
+.card-val{font-size:1.9rem;font-weight:800;line-height:1;letter-spacing:-.5px}
+.card-unit{font-size:.7rem;color:var(--muted);margin-top:3px}
+.card-avg{font-size:.72rem;color:var(--muted);margin-top:8px;
+          padding-top:8px;border-top:1px solid var(--border)}
+.card-avg b{color:var(--accent)}
+.pill{display:inline-block;padding:3px 10px;border-radius:20px;
+      font-size:.78rem;font-weight:700}
+.pill-ok{background:#064e3b;color:var(--green)}
+.pill-err{background:#450a0a;color:var(--red)}
 
-  /* Gráficos */
-  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
-  .chart-box{background:#0f1117;border:1px solid #2a2d3a;border-radius:12px;
-             padding:14px;height:200px;position:relative}
-  .chart-box canvas{position:absolute;inset:12px}
+/* ── CHARTS ── */
+.charts{display:grid;gap:10px;
+        grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.chart-box{background:var(--bg3);border:1px solid var(--border);
+           border-radius:var(--r);padding:12px;
+           height:180px;position:relative}
+.chart-box canvas{position:absolute;inset:10px}
 
-  /* Separador de máquinas */
-  .maq-sep{height:1px;background:#2a2d3a;margin:8px 0 20px}
+/* ── MODAL ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);
+         display:none;align-items:center;justify-content:center;
+         z-index:200;padding:16px}
+.modal{background:var(--bg2);border:1px solid var(--border);
+       border-radius:var(--r);padding:24px;width:100%;max-width:360px}
+.modal h3{font-size:1.1rem;margin-bottom:16px}
+.modal label{display:block;font-size:.82rem;color:var(--muted);margin:12px 0 6px}
+.modal input[type=email]{
+  width:100%;background:var(--bg3);border:1px solid var(--border);
+  border-radius:var(--r-sm);color:var(--txt);padding:10px 12px;
+  font-size:.95rem;outline:none;
+}
+.modal input[type=email]:focus{border-color:var(--accent)}
+.chk-row{display:flex;align-items:center;gap:10px;margin-top:12px;cursor:pointer}
+.chk-row input{width:18px;height:18px;cursor:pointer;accent-color:var(--accent)}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-sec{background:#334155;color:#fff}
 
-  /* Responsive */
-  @media(max-width:600px){
-    .hdr{flex-direction:column;gap:10px;text-align:center}
-    .cards{grid-template-columns:repeat(2,1fr)}
-  }
+/* ── RESPONSIVE ── */
+@media(max-width:480px){
+  .hdr{padding:10px 12px}
+  .hdr-logo{font-size:.9rem}
+  .main{padding:10px;gap:14px}
+  .cards{grid-template-columns:repeat(2,1fr)}
+  .card-val{font-size:1.6rem}
+  .charts{grid-template-columns:1fr}
+  .chart-box{height:160px}
+  .btn{padding:7px 11px;font-size:.8rem}
+  .chip{display:none}  /* Ocultar nombre de usuario en mobile muy chico */
+}
+@media(min-width:768px){
+  .main{padding:20px 24px}
+  .cards{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+  .chart-box{height:200px}
+}
 </style></head><body>
 
 <div class="hdr">
-  <div class="hdr-title">Monitor <span>Centrífugas</span></div>
+  <div class="hdr-logo">Monitor <span>Centrífugas</span></div>
   <div class="hdr-right">
-    <span class="tag-user">{{ user }}</span>
-    <a href="/logout" class="btn btn-logout">Salir</a>
+    <span class="chip">{{ user }}</span>
+    <button onclick="openModal()" class="btn btn-cfg">⚙ Config</button>
+    <a href="/logout" class="btn btn-out">Salir</a>
   </div>
 </div>
 
 <div class="main" id="main"></div>
 
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3>Configuración de alertas</h3>
+    <label>Email para recibir alarmas</label>
+    <input type="email" id="userEmail" placeholder="tu@email.com">
+    <label class="chk-row">
+      <input type="checkbox" id="userAlerts">
+      Recibir notificaciones por email
+    </label>
+    <div class="modal-actions">
+      <button class="btn btn-sec" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSettings()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const MACHINES = {{ machines|tojson }};
 const charts = {};
+const initialized = {};
 
-// Inicializar estructura para cada máquina
-MACHINES.forEach(maq => {
-  const main = document.getElementById('main');
+function openModal(){
+  document.getElementById('overlay').style.display='flex';
+  fetch('/api/users').then(r=>r.json()).then(d=>{
+    document.getElementById('userEmail').value=d.email||'';
+    document.getElementById('userAlerts').checked=!!d.alerts;
+  });
+}
+function closeModal(){document.getElementById('overlay').style.display='none'}
+function saveSettings(){
+  const data={email:document.getElementById('userEmail').value,
+              alerts:document.getElementById('userAlerts').checked};
+  fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
+                      body:JSON.stringify(data)})
+    .then(()=>{closeModal()});
+}
 
-  const block = document.createElement('div');
-  block.className = 'maq-block';
-  block.id = 'block_' + maq.id;
-  block.innerHTML = `
-    <div class="maq-title">
-      <div class="dot"></div>
-      ${maq.label}
-      <span class="badge" id="badge_${maq.id}">Sin datos</span>
+MACHINES.forEach(maq=>{
+  const main=document.getElementById('main');
+  const block=document.createElement('div');
+  block.className='maq-block';block.id='block_'+maq.id;
+  block.innerHTML=`
+    <div class="maq-header">
+      <div class="maq-dot"></div>
+      <div class="maq-name">${maq.label}</div>
+      <span class="maq-badge" id="badge_${maq.id}">Sin datos</span>
     </div>
-    <div id="alarm_${maq.id}" class="alarm-banner"></div>
+    <div class="alarm-banner" id="alarm_${maq.id}">
+      <span class="alarm-icon">🚨</span>
+      <span id="alarm_txt_${maq.id}"></span>
+    </div>
     <div class="cards" id="cards_${maq.id}"></div>
     <div class="charts" id="charts_${maq.id}"></div>
   `;
   main.appendChild(block);
-  charts[maq.id] = {};
+  charts[maq.id]={};
 });
 
-function mkChart(canvasId, label, color) {
-  const ctx = document.getElementById(canvasId)?.getContext('2d');
-  if (!ctx) return null;
-  return new Chart(ctx, {
-    type: 'line',
-    data: { labels: [], datasets: [{ label, data: [],
-      borderColor: color, backgroundColor: color + '22',
-      borderWidth: 2, tension: 0.35, pointRadius: 0, fill: true }] },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: '#475569', maxTicksLimit: 6 }, grid: { color: '#1e2235' } },
-        y: { ticks: { color: '#475569' }, grid: { color: '#1e2235' } }
+function mkChart(cid,label,color){
+  const ctx=document.getElementById(cid)?.getContext('2d');
+  if(!ctx)return null;
+  return new Chart(ctx,{
+    type:'line',
+    data:{labels:[],datasets:[{label,data:[],
+      borderColor:color,backgroundColor:color+'18',
+      borderWidth:2,tension:.35,pointRadius:0,fill:true}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#475569',maxTicksLimit:5,maxRotation:0},grid:{color:'#1e2235'}},
+        y:{ticks:{color:'#475569',maxTicksLimit:5},grid:{color:'#1e2235'}}
       }
     }
   });
 }
 
-function pushChart(chart, label, value) {
-  if (!chart) return;
-  chart.data.labels.push(label);
-  chart.data.datasets[0].data.push(value);
-  if (chart.data.labels.length > 60) {
-    chart.data.labels.shift();
-    chart.data.datasets[0].data.shift();
-  }
-  chart.update('none');
+function fmtVal(v,dec){
+  if(v===null||v===undefined)return'--';
+  if(typeof v==='boolean')
+    return v?'<span class="pill pill-ok">OK</span>'
+            :'<span class="pill pill-err">FALLA</span>';
+  return Number(v).toFixed(dec??1);
 }
 
-function fmtVal(v, dec) {
-  if (v === null || v === undefined) return '--';
-  if (typeof v === 'boolean') return v ? '<span class="pill pill-ok">OK</span>' : '<span class="pill pill-err">FALLA</span>';
-  return Number(v).toFixed(dec ?? 1);
-}
-
-// Construir cards dinámicamente la primera vez que llegan datos de una máquina
-const initialized = {};
-function initCards(maqId, display_vars) {
-  if (initialized[maqId]) return;
-  initialized[maqId] = true;
-  const cardsEl = document.getElementById('cards_' + maqId);
-  const chartsEl = document.getElementById('charts_' + maqId);
-  charts[maqId] = {};
-
-  display_vars.forEach(v => {
-    // Card
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.style.borderColor = v.color + '55';
-    card.innerHTML = `
-      <div class="card-label">${v.label}</div>
-      <div class="card-value" id="val_${maqId}_${v.key}" style="color:${v.color}">--</div>
+function initCards(maqId,dvars){
+  if(initialized[maqId])return;
+  initialized[maqId]=true;
+  const cardsEl=document.getElementById('cards_'+maqId);
+  const chartsEl=document.getElementById('charts_'+maqId);
+  charts[maqId]={};
+  dvars.forEach(v=>{
+    const card=document.createElement('div');
+    card.className='card';
+    card.style.borderColor=v.color+'55';
+    card.innerHTML=`
+      <div class="card-lbl">${v.label}</div>
+      <div class="card-val" id="val_${maqId}_${v.key}" style="color:${v.color}">--</div>
       <div class="card-unit">${v.unit}</div>
       <div class="card-avg" id="avg_${maqId}_${v.key}" style="display:none">
-        Prom 10m: <b id="avgval_${maqId}_${v.key}">--</b>
-      </div>
-    `;
+        Prom sesión: <b id="avgv_${maqId}_${v.key}">--</b> ${v.unit}
+      </div>`;
     cardsEl.appendChild(card);
-
-    // Gráfico solo para variables numéricas no booleanas
-    if (!v.is_boolean) {
-      const box = document.createElement('div');
-      box.className = 'chart-box';
-      const cid = `ch_${maqId}_${v.key}`;
-      box.innerHTML = `<canvas id="${cid}"></canvas>`;
+    if(!v.is_boolean){
+      const box=document.createElement('div');
+      box.className='chart-box';
+      const cid=`ch_${maqId}_${v.key}`;
+      box.innerHTML=`<canvas id="${cid}"></canvas>`;
       chartsEl.appendChild(box);
-      charts[maqId][v.key] = null; // se crea después de insertar el DOM
-      setTimeout(() => {
-        charts[maqId][v.key] = mkChart(cid, v.label, v.color);
-      }, 50);
+      charts[maqId][v.key]=null;
+      setTimeout(()=>{charts[maqId][v.key]=mkChart(cid,v.label,v.color);},60);
     }
   });
 }
 
-function update() {
-  fetch('/api/data').then(r => r.json()).then(data => {
-    for (const [maqId, d] of Object.entries(data)) {
-      if (!d.display_vars) continue;
-      initCards(maqId, d.display_vars);
+function update(){
+  fetch('/api/data').then(r=>r.json()).then(data=>{
+    for(const[maqId,d]of Object.entries(data)){
+      if(!d.display_vars)continue;
+      initCards(maqId,d.display_vars);
 
-      // Badge de timestamp
-      const badge = document.getElementById('badge_' + maqId);
-      if (badge && d.timestamp) badge.textContent = d.timestamp;
-
-      // Alarmas
-      const alarmEl = document.getElementById('alarm_' + maqId);
-      const alarmMsg = d.alarm_message || '';
-      if (alarmEl) {
-        alarmEl.textContent = alarmMsg;
-        alarmEl.style.display = alarmMsg ? 'block' : 'none';
+      const badge=document.getElementById('badge_'+maqId);
+      if(badge&&d.timestamp){
+        badge.textContent=d.recording?'⏺ '+d.timestamp:d.timestamp;
+        badge.className=d.recording?'maq-rec-badge':'maq-badge';
       }
 
-      // Valores en cards
-      d.display_vars.forEach(v => {
-        const valEl  = document.getElementById(`val_${maqId}_${v.key}`);
-        const avgEl  = document.getElementById(`avg_${maqId}_${v.key}`);
-        const avgVal = document.getElementById(`avgval_${maqId}_${v.key}`);
-        const raw = d.current[v.key];
+      // Banner de alarma
+      const banner=document.getElementById('alarm_'+maqId);
+      const txt=document.getElementById('alarm_txt_'+maqId);
+      const msg=d.alarm_message||'';
+      if(banner){banner.style.display=msg?'block':'none';}
+      if(txt)txt.textContent=msg;
 
-        if (valEl) valEl.innerHTML = fmtVal(raw, v.decimals);
-
-        // Promedio en historial (para numéricas)
-        if (!v.is_boolean && avgEl && avgVal && d.history?.length) {
-          const vals = d.history.map(h => h[v.key]).filter(x => x !== null && x !== undefined);
-          if (vals.length) {
-            avgEl.style.display = 'block';
-            avgVal.textContent = (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(v.decimals ?? 1);
+      // Cards
+      d.display_vars.forEach(v=>{
+        const el=document.getElementById('val_'+maqId+'_'+v.key);
+        const avgEl=document.getElementById('avg_'+maqId+'_'+v.key);
+        const avgV=document.getElementById('avgv_'+maqId+'_'+v.key);
+        if(el)el.innerHTML=fmtVal(d.current[v.key],v.decimals);
+        if(!v.is_boolean&&avgEl&&avgV&&d.history?.length){
+          const vals=d.history.map(h=>h[v.key]).filter(x=>x!=null);
+          if(vals.length){
+            avgEl.style.display='block';
+            avgV.textContent=(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(v.decimals??1);
           }
         }
       });
 
-      // Actualizar gráficos con historial
-      if (d.history?.length) {
-        d.history.forEach(pt => {
-          if (pt._gap) return;
-          const lbl = pt.timestamp || '';
-          d.display_vars.forEach(v => {
-            if (!v.is_boolean && charts[maqId][v.key] && pt[v.key] !== undefined) {
-              // Solo agregar si el chart no tiene este label ya
-            }
-          });
-        });
-        // Actualización simple: reemplazar datos completos del gráfico
-        d.display_vars.forEach(v => {
-          if (v.is_boolean) return;
-          const ch = charts[maqId][v.key];
-          if (!ch) return;
-          const labels = d.history.filter(h=>!h._gap).map(h=>h.timestamp||'');
-          const vals   = d.history.filter(h=>!h._gap).map(h=>h[v.key]??null);
-          ch.data.labels = labels;
-          ch.data.datasets[0].data = vals;
+      // Gráficos
+      if(d.history?.length){
+        d.display_vars.forEach(v=>{
+          if(v.is_boolean)return;
+          const ch=charts[maqId][v.key];
+          if(!ch)return;
+          const pts=d.history.filter(h=>!h._gap);
+          ch.data.labels=pts.map(h=>h.timestamp||'');
+          ch.data.datasets[0].data=pts.map(h=>h[v.key]??null);
           ch.update('none');
         });
       }
     }
-  }).catch(e => console.warn('Error API:', e));
+  }).catch(e=>console.warn('API error:',e));
 }
 
 update();
-setInterval(update, 2000);
+setInterval(update,2000);
 </script></body></html>
 """
 
@@ -427,18 +492,19 @@ class WebServer:
                         ack = " (En revisión)" if state.get("ack") else ""
                         alarm_msg += f"⚠ {state['name']}{ack}  "
 
-                # Metadata de visualización del parser
-                display_vars = [
-                    {
-                        "key":        vd.key,
-                        "label":      vd.label,
-                        "unit":       vd.unit,
-                        "color":      vd.color,
-                        "decimals":   vd.decimals,
-                        "is_boolean": vd.is_boolean,
-                    }
-                    for vd in core.parser.display_config
-                ]
+                # Metadata de visualización: filtrar por selección del usuario
+                visible_keys = core.get_config("web_visible_vars", None)
+                display_vars = []
+                for vd in core.parser.display_config:
+                    if visible_keys is None or vd.key in visible_keys:
+                        display_vars.append({
+                            "key":        vd.key,
+                            "label":      vd.label,
+                            "unit":       vd.unit,
+                            "color":      vd.color,
+                            "decimals":   vd.decimals,
+                            "is_boolean": vd.is_boolean,
+                        })
 
                 result[mid] = {
                     "current":      latest,

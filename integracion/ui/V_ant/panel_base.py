@@ -661,104 +661,67 @@ class MaquinaPanel(tk.Frame):
     # Pestaña: Ensayos
     # -------------------------------------------------------------------
     def _build_ensayo_tab(self, tab):
-        """
-        ENSAYO  = configuración del ensamble (reutilizable):
-                  nombre + atributos mecánicos, guardado para usar en múltiples pruebas.
-        PRUEBA  = ejecución concreta dentro de un ensayo:
-                  nombre + timestamp automático para que nunca haya dos iguales.
-        """
         pad = {"padx": 8, "pady": 5}
+        top = ttk.LabelFrame(tab, text="Gestión de Ensayos")
+        top.pack(fill=tk.X, padx=10, pady=10)
 
-        # ── Sección 1: Ensayo ────────────────────────────────────────────
-        lf_ens = ttk.LabelFrame(tab, text="Ensayo  (configuración del ensamble)")
-        lf_ens.pack(fill=tk.X, padx=10, pady=(10, 4))
-
-        r0 = ttk.Frame(lf_ens); r0.pack(fill=tk.X, **pad)
-        ttk.Label(r0, text="Ensayo activo:").pack(side=tk.LEFT)
-        self._ensayo_combo = ttk.Combobox(r0, textvariable=self._ensayo_var,
-                                           state="readonly", width=28)
+        r0 = ttk.Frame(top); r0.pack(fill=tk.X, **pad)
+        ttk.Label(r0, text="Ensayo (Configuración):").pack(side=tk.LEFT)
+        # Le sacamos el state="readonly" para que pueda escribir nombres nuevos
+        self._ensayo_combo = ttk.Combobox(r0, textvariable=self._ensayo_var, width=26)
         self._ensayo_combo.pack(side=tk.LEFT, padx=6)
         self._ensayo_combo.bind("<<ComboboxSelected>>", self._on_ensayo_selected)
-        ttk.Button(r0, text="✔  Cargar como activo",
+        self._ensayo_combo.bind("<Return>", lambda e: self._save_ensayo()) # Atajo Enter
+        ttk.Button(r0, text="Cargar activo",
                    command=self._load_ensayo).pack(side=tk.LEFT, padx=4)
+        ttk.Button(r0, text="Guardar config.",
+                   command=self._save_ensayo).pack(side=tk.LEFT, padx=4)
         ttk.Button(r0, text="Eliminar",
                    command=self._delete_ensayo).pack(side=tk.LEFT)
 
-        r1 = ttk.Frame(lf_ens); r1.pack(fill=tk.X, **pad)
-        self._nuevo_ensayo_nombre = tk.StringVar()
-        ttk.Label(r1, text="Guardar como:").pack(side=tk.LEFT)
-        ens_entry = ttk.Entry(r1, textvariable=self._nuevo_ensayo_nombre, width=28)
-        ens_entry.pack(side=tk.LEFT, padx=6)
-        ens_entry.bind("<Return>", lambda e: self._save_ensayo())
-        ttk.Button(r1, text="Guardar ensayo",
-                   command=self._save_ensayo).pack(side=tk.LEFT, padx=4)
-        ttk.Label(r1, text="(guarda nombre + atributos para reutilizar en varias pruebas)",
-                  font=("Segoe UI", 8),
-                  foreground=THEME["text_muted"]).pack(side=tk.LEFT, padx=6)
+        r1 = ttk.Frame(top); r1.pack(fill=tk.X, **pad)
+        ttk.Label(r1, text="Nombre de próxima Prueba:").pack(side=tk.LEFT)
+        ttk.Entry(r1, textvariable=self._prueba_var, width=26).pack(side=tk.LEFT, padx=6)
+        ttk.Label(r1, text="(Se agregará la hora al iniciar la grabación)",
+                  foreground=THEME["text_muted"]).pack(side=tk.LEFT)
 
-        # Atributos del ensayo
-        attr = ttk.LabelFrame(lf_ens, text="Atributos del Ensayo")
-        attr.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
+        attr = ttk.LabelFrame(tab, text="Atributos del Ensayo")
+        attr.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
 
-        add_row = ttk.Frame(attr); add_row.pack(fill=tk.X, padx=6, pady=4)
+        add_row = ttk.Frame(attr); add_row.pack(fill=tk.X, **pad)
         self._attr_key = tk.StringVar()
         self._attr_val = tk.StringVar()
+
         self._predefined_attrs = [
             "Prototipo", "Rotor", "Aguja", "Carcasa", "Driver",
             "Tensión (V)", "Nivel de vacío", "Material", "Operador",
-            "Temperatura ambiente", "Humedad relativa", "Observaciones",
-            "Otro...",
+            "Temperatura ambiente", "Humedad relativa", "Observaciones", "Otro...",
         ]
-        self._attr_combo = ttk.Combobox(
-            add_row, textvariable=self._attr_key,
-            values=self._predefined_attrs, width=20)
+        self._attr_combo = ttk.Combobox(add_row, textvariable=self._attr_key,
+                                        values=self._predefined_attrs, width=20)
         self._attr_combo.pack(side=tk.LEFT)
         self._attr_combo.bind("<<ComboboxSelected>>", self._on_attr_selected)
-        tk.Label(add_row, text="=", bg=THEME["bg"],
-                 fg=THEME["text_muted"]).pack(side=tk.LEFT, padx=4)
-        val_entry = ttk.Entry(add_row, textvariable=self._attr_val, width=28)
-        val_entry.pack(side=tk.LEFT)
-        val_entry.bind("<Return>", lambda e: self._add_attr())
-        ttk.Button(add_row, text="Agregar",
-                   command=self._add_attr).pack(side=tk.LEFT, padx=6)
-        ttk.Button(add_row, text="Limpiar",
-                   command=self._clear_attrs).pack(side=tk.LEFT)
 
-        self._attr_tree = ttk.Treeview(attr, columns=("a", "v"),
-                                        show="headings", height=5)
+        tk.Label(add_row, text="=", bg=THEME["bg"], fg=THEME["text_muted"]).pack(side=tk.LEFT, padx=4)
+        attr_v_entry = ttk.Entry(add_row, textvariable=self._attr_val, width=30)
+        attr_v_entry.pack(side=tk.LEFT)
+        attr_v_entry.bind("<Return>", lambda e: self._add_attr()) # Atajo Enter
+        
+        ttk.Button(add_row, text="Agregar", command=self._add_attr).pack(side=tk.LEFT, padx=6)
+        ttk.Button(add_row, text="Limpiar", command=self._clear_attrs).pack(side=tk.LEFT)
+
+        # El Treeview queda igual:
+        self._attr_tree = ttk.Treeview(attr, columns=("a", "v"), show="headings", height=8)
         self._attr_tree.heading("a", text="Atributo")
         self._attr_tree.heading("v", text="Valor")
         self._attr_tree.column("a", width=180)
-        self._attr_tree.column("v", width=360)
+        self._attr_tree.column("v", width=380)
         vsb = ttk.Scrollbar(attr, orient=tk.VERTICAL, command=self._attr_tree.yview)
         self._attr_tree.configure(yscrollcommand=vsb.set)
         vsb.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 6))
         self._attr_tree.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 6))
         self._attr_tree.bind("<Delete>", lambda e: self._del_attr())
-        self._bind_mousewheel(self._attr_tree, self._attr_tree)
-
-        # ── Sección 2: Prueba ────────────────────────────────────────────
-        lf_pru = ttk.LabelFrame(
-            tab, text="Prueba  (ejecución concreta dentro del ensayo activo)")
-        lf_pru.pack(fill=tk.X, padx=10, pady=(4, 10))
-
-        r2 = ttk.Frame(lf_pru); r2.pack(fill=tk.X, **pad)
-        ttk.Label(r2, text="Nombre de prueba:").pack(side=tk.LEFT)
-        pru_entry = ttk.Entry(r2, textvariable=self._prueba_var, width=28)
-        pru_entry.pack(side=tk.LEFT, padx=6)
-        pru_entry.bind("<Return>", lambda e: self._confirm_prueba())
-        ttk.Button(r2, text="✔  Confirmar nombre",
-                   command=self._confirm_prueba).pack(side=tk.LEFT, padx=4)
-
-        r3 = ttk.Frame(lf_pru); r3.pack(fill=tk.X, padx=8, pady=(0, 8))
-        self._prueba_display_var = tk.StringVar(value="(sin confirmar — se asigna timestamp al grabar)")
-        ttk.Label(r3, text="Nombre que se grabará:").pack(side=tk.LEFT)
-        ttk.Label(r3, textvariable=self._prueba_display_var,
-                  font=("Segoe UI", 9, "bold"),
-                  foreground=THEME["accent"]).pack(side=tk.LEFT, padx=6)
-
         self._update_ensayos_combo()
-
 
     # -------------------------------------------------------------------
     # Pestaña: Historial
@@ -1023,33 +986,33 @@ class MaquinaPanel(tk.Frame):
         # Alarmas
         lf_al = ttk.LabelFrame(inner, text="Alarmas")
         lf_al.grid(row=3, column=0, sticky="ew", **pad)
-        for col, lbl in [(0, "Alarma"), (1, "Umbral"), (2, "Ud."),
-                          (3, "Debounce"), (4, "Reenvio email (min)")]:
+        # Encabezados de columnas
+        for col, lbl in [(0, "Alarma"), (1, "Umbral"), (2, "Unidad"), (3, "Debounce")]:
             ttk.Label(lf_al, text=lbl, font=("Segoe UI", 8, "bold"),
                       foreground=THEME["text_muted"]).grid(
                 row=0, column=col, sticky="w", padx=8, pady=(4, 0))
-        self._alarm_enabled_vars:  dict[str, tk.BooleanVar] = {}
+        self._alarm_enabled_vars: dict[str, tk.BooleanVar] = {}
         self._alarm_threshold_vars: dict[str, tk.StringVar] = {}
-        self._alarm_debounce_vars:  dict[str, tk.StringVar] = {}
-        self._alarm_cooldown_vars:  dict[str, tk.StringVar] = {}
+        self._alarm_debounce_vars: dict[str, tk.StringVar] = {}
 
+        # Alarmas booleanas: sin umbral numérico (cable fusible, flujo de agua)
         BOOLEAN_ALARMS = {"flujo", "cable_fusible"}
 
         for i, (key, alarm) in enumerate(self._core.alarms.items(), start=1):
             en = tk.BooleanVar(value=alarm.enabled)
             th = tk.StringVar(value=str(alarm.threshold))
             db = tk.StringVar(value=str(alarm.debounce))
-            cl = tk.StringVar(value=str(alarm.cooldown_min))
             self._alarm_enabled_vars[key]   = en
             self._alarm_threshold_vars[key] = th
             self._alarm_debounce_vars[key]  = db
-            self._alarm_cooldown_vars[key]  = cl
 
-            is_bool = key in BOOLEAN_ALARMS
+            is_bool_alarm = key in BOOLEAN_ALARMS
+
             ttk.Checkbutton(lf_al, text=alarm.name,
                              variable=en).grid(row=i, column=0,
                                                sticky="w", padx=8, pady=3)
-            if is_bool:
+            if is_bool_alarm:
+                # Alarma booleana: no tiene umbral, mostrar texto informativo
                 ttk.Label(lf_al, text="Activado/Desactivado",
                           font=("Segoe UI", 8),
                           foreground=THEME["text_muted"]).grid(
@@ -1060,16 +1023,12 @@ class MaquinaPanel(tk.Frame):
                 unit = next((vd.unit for vd in self._core.parser.display_config
                              if vd.key in key), "")
                 ttk.Label(lf_al, text=unit).grid(row=i, column=2, sticky="w")
-            ttk.Entry(lf_al, textvariable=db, width=5).grid(
+            ttk.Entry(lf_al, textvariable=db, width=6).grid(
                 row=i, column=3, sticky="w", padx=4)
-            ttk.Entry(lf_al, textvariable=cl, width=6).grid(
-                row=i, column=4, sticky="w", padx=4)
 
-        ttk.Label(lf_al,
-                  text="Debounce: lecturas consecutivas antes de disparar  "
-                       "·  Reenvio 0 = solo un mail por alarma",
+        ttk.Label(lf_al, text="Debounce: lecturas consecutivas fuera de umbral antes de disparar",
                   font=("Segoe UI", 8), foreground=THEME["text_muted"]).grid(
-            row=i+1, column=0, columnspan=5, sticky="w", padx=8, pady=(0, 4))
+            row=i+1, column=0, columnspan=4, sticky="w", padx=8, pady=(0, 4))
 
         # BD
         lf_db = ttk.LabelFrame(inner, text="Base de Datos")
@@ -1136,22 +1095,16 @@ class MaquinaPanel(tk.Frame):
     # -------------------------------------------------------------------
     def _start_recording(self):
         ensayo = self._ensayo_var.get() or "Sin Ensayo"
-        prueba_raw = self._prueba_var.get().strip()
-        if not prueba_raw:
-            prueba_raw = "Prueba"
-        # Si el operador no confirmó la prueba (sin timestamp), agregar uno automático
-        if "[" not in prueba_raw:
-            ts = datetime.now().strftime("%d/%m %H:%M")
-            prueba = f"{prueba_raw}  [{ts}]"
-        else:
-            prueba = prueba_raw
+        prueba_base = self._prueba_var.get().strip() or "Prueba"
+        ts = datetime.now().strftime('%H%M%S')
+        prueba = f"{prueba_base}_{ts}"
+
         if self._core.start_recording(ensayo=ensayo, prueba=prueba):
             self._led_conn.set_ok("Grabando...")
             self._btn_start.config(state=tk.DISABLED)
             self._btn_pause.config(state=tk.NORMAL)
             self._btn_stop.config(state=tk.NORMAL)
             self._ensayo_disp_lbl.config(text=f"{ensayo}  |  {prueba}")
-            # Arrancar cronómetro
             self._timer_start = datetime.now()
             self._timer_paused_secs = 0
             self._timer_running = True
@@ -1306,13 +1259,10 @@ class MaquinaPanel(tk.Frame):
                             f"'{nombre}' activo.", parent=self)
 
     def _save_ensayo(self):
-        # Usar el campo específico de nombre de ensayo, no el de prueba
-        nombre = (getattr(self, "_nuevo_ensayo_nombre", None) or tk.StringVar()).get().strip()
-        if not nombre:
-            nombre = self._ensayo_var.get().strip()
+        nombre = self._ensayo_var.get().strip()
         if not nombre:
             messagebox.showwarning("Nombre vacío",
-                                   "Ingresá un nombre para el ensayo.", parent=self)
+                                   "Ingresá un nombre de ensayo.", parent=self)
             return
         items = [{"atributo": self._attr_tree.item(c)["values"][0],
                   "valor":    self._attr_tree.item(c)["values"][1]}
@@ -1321,7 +1271,7 @@ class MaquinaPanel(tk.Frame):
         self._save_ensayos_file()
         self._update_ensayos_combo()
         messagebox.showinfo("Guardado",
-                            f"Ensayo '{nombre}' guardado.", parent=self)
+                            f"Configuración del ensayo '{nombre}' guardada.", parent=self)
 
     def _delete_ensayo(self):
         nombre = self._ensayo_var.get()
@@ -1337,27 +1287,6 @@ class MaquinaPanel(tk.Frame):
         if self._attr_key.get() == "Otro...":
             self._attr_key.set("")
             self._attr_combo.focus_set()
-
-    def _confirm_prueba(self):
-        """Confirma el nombre de prueba agregando timestamp [DD/MM HH:MM]."""
-        nombre = self._prueba_var.get().strip()
-        if not nombre:
-            messagebox.showwarning("Sin nombre",
-                                   "Ingresá un nombre para la prueba.", parent=self)
-            return
-        # No agregar segundo timestamp si ya tiene uno
-        if "[" in nombre:
-            if hasattr(self, "_prueba_display_var"):
-                self._prueba_display_var.set(nombre)
-            return
-        ts = datetime.now().strftime("%d/%m %H:%M")
-        nombre_final = f"{nombre}  [{ts}]"
-        self._prueba_var.set(nombre_final)
-        if hasattr(self, "_prueba_display_var"):
-            self._prueba_display_var.set(nombre_final)
-        messagebox.showinfo("Prueba confirmada",
-                            f"La próxima grabación usará:\n{nombre_final}",
-                            parent=self)
 
     def _add_attr(self):
         k, v = self._attr_key.get().strip(), self._attr_val.get().strip()
@@ -1768,12 +1697,7 @@ class MaquinaPanel(tk.Frame):
                     deb = int(self._alarm_debounce_vars[key].get())
                 except (ValueError, KeyError):
                     deb = 10
-                try:
-                    cool = int(self._alarm_cooldown_vars[key].get())
-                except (ValueError, KeyError):
-                    cool = 0
-                self._core.configure_alarm(key, en_var.get(), thr,
-                                           debounce=deb, cooldown_min=cool)
+                self._core.configure_alarm(key, en_var.get(), thr, debounce=deb)
             self._core.save_config()
             self._plot._title = self._core.get_config("plot_title", "RPM")
             self._plot.set_range(self._core.get_config("plot_ymin", 0),

@@ -73,7 +73,7 @@ class AlarmDef:
     threshold:    float  = 0.0
     enabled:      bool   = False
     debounce:     int    = 10
-    cooldown_min: int    = 0     # 0 = un solo email por disparo, nunca reenvía
+    cooldown_min: int    = 30
     log_evento:   Optional[str] = field(default=None, repr=False)
 
     # Estado en runtime (no se serializa)
@@ -606,8 +606,6 @@ class MaquinaCore:
                         alarm.counter   = 0
                         alarm.last_fired = datetime.now()
 
-                        # Texto para mostrar en UI y email
-                        # Las alarmas booleanas (flujo, cable fusible) no tienen umbral numérico
                         is_boolean = alarm.threshold == 0 and not isinstance(value, (int, float)) \
                                      or (alarm.threshold == 0 and alarm.log_evento)
                         evento_bd  = alarm.log_evento or f"ALARMA: {alarm.name}"
@@ -618,31 +616,21 @@ class MaquinaCore:
                             detalle_bd  = f"Valor: {value} | Umbral: {alarm.threshold}"
                             msg_display = f"{alarm.name}  —  {value}"
 
-                        # Registrar en BD:
-                        #   - siempre si hay sesión activa
-                        #   - cable_fusible también sin sesión (evento crítico de hardware)
                         if self._session or alarm.key == "cable_fusible":
                             en = self._session.ensayo if self._session else "Sin sesión"
                             pr = self._session.prueba if self._session else "—"
                             threading.Thread(
                                 target=self._db.log_alarma,
-                                kwargs=dict(
-                                    evento=evento_bd,
-                                    detalle=detalle_bd,
-                                    ensayo=en,
-                                    prueba=pr,
-                                ),
+                                kwargs=dict(evento=evento_bd, detalle=detalle_bd, ensayo=en, prueba=pr),
                                 daemon=True,
                             ).start()
 
-                        # Notificar suscriptores de UI
                         for cb in self._alarm_callbacks:
                             try:
                                 cb(alarm.key, alarm.name, msg_display, alarm.threshold)
                             except Exception as e:
                                 print(f"[MaquinaCore] Error en alarm callback: {e}")
 
-                        # Email (asíncrono)
                         threading.Thread(
                             target=self._send_alarm_email,
                             args=(alarm.name, msg_display, alarm.threshold, False),
@@ -650,9 +638,11 @@ class MaquinaCore:
                         ).start()
 
                 else:
-                    # Ya activa: re-enviar solo si cooldown > 0 y pasó el tiempo
-                    # cooldown_min == 0 → un solo email por alarma, nunca se reenvía
-                    if not alarm.ack and alarm.last_fired and alarm.cooldown_min > 0:
+                    # Novedad: Reiniciamos el contador de normalización si vuelve a fallar
+                    alarm.counter = 0 
+                    
+                    # Ya activa: chequear si hay que re-enviar email (cooldown)
+                    if not alarm.ack and alarm.last_fired:
                         mins = (datetime.now() - alarm.last_fired).total_seconds() / 60
                         if mins >= alarm.cooldown_min:
                             alarm.last_fired = datetime.now()
@@ -683,6 +673,7 @@ class MaquinaCore:
                             daemon=True,
                         ).start()
                 else:
+                    # Novedad: Reiniciamos el contador de disparo si todo está OK
                     alarm.counter = 0
 
     @property

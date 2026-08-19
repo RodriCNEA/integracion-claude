@@ -366,115 +366,120 @@ class MedicionesDB:
         intervalo_seg: int = 1,
     ) -> str:
         """
-        Exporta datos a Excel (.xlsx).
-
-        fechas: lista de 'YYYY-MM-DD' a exportar
-        ensayos_meta: dict con atributos de los ensayos (del ensayos.json)
-
-        Retorna la ruta del archivo guardado.
+        Exporta datos a Excel en formato HORIZONTAL (Bloques por Prueba).
         """
         wb = Workbook()
         ws_data = wb.active
-        ws_data.title = "Mediciones"
+        ws_data.title = "Datos de Medición"
 
-        # Estilos
-        header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill("solid", fgColor="2E4057")
-        subheader_fill = PatternFill("solid", fgColor="4A7C9E")
-        date_fill = PatternFill("solid", fgColor="E8F4F8")
-        center = Alignment(horizontal="center", vertical="center")
+        bold_font = Font(bold=True)
+        center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
         col_labels = [lbl for _, _, lbl in self._data_columns]
         col_names = [name for name, _, _ in self._data_columns]
 
-        # Columnas fijas + columnas de datos
-        all_headers = ["Fecha", "Hora", "Ensayo", "Prueba", "Comentario"] + col_labels
-
-        # Fila de encabezados
-        for i, h in enumerate(all_headers, 1):
-            cell = ws_data.cell(row=1, column=i, value=h)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = center
-
-        ws_data.freeze_panes = "A2"
-
-        current_row = 2
-        fill_alt = PatternFill("solid", fgColor="F5F9FF")
+        col_offset = 1
 
         for fecha in fechas:
             filas = self.get_mediciones_del_dia(fecha, h_inicio, h_fin, intervalo_seg)
             if not filas:
                 continue
 
-            # Separador visual por fecha
-            cell = ws_data.cell(row=current_row, column=1, value=f"— {fecha} —")
-            cell.fill = date_fill
-            cell.font = Font(bold=True, color="2E4057")
-            ws_data.merge_cells(
-                start_row=current_row, start_column=1,
-                end_row=current_row, end_column=len(all_headers)
-            )
-            current_row += 1
+            # 1. Agrupar filas por (Ensayo, Prueba)
+            ensayos_en_dia = {}
+            for fila in filas:
+                ens = fila.get("ensayo") or "Sin Ensayo"
+                pr = fila.get("prueba") or "Sin Prueba"
+                clave = f"E:{ens}|P:{pr}"
+                if clave not in ensayos_en_dia:
+                    ensayos_en_dia[clave] = {"ensayo": ens, "prueba": pr, "filas": []}
+                ensayos_en_dia[clave]["filas"].append(fila)
 
-            for i, fila in enumerate(filas):
-                use_fill = fill_alt if i % 2 == 1 else None
-                row_data = [
-                    fila["timestamp"].strftime("%Y-%m-%d"),
-                    fila["timestamp"].strftime("%H:%M:%S"),
-                    fila.get("ensayo", ""),
-                    fila.get("prueba", ""),
-                    fila.get("comentario", ""),
-                ] + [fila.get(col) for col in col_names]
+            # 2. Calcular la fila donde empiezan los datos (depende del ensayo con más atributos)
+            max_attrs = 0
+            for info in ensayos_en_dia.values():
+                ens = info["ensayo"]
+                if ens in ensayos_meta:
+                    max_attrs = max(max_attrs, len(ensayos_meta[ens]))
 
-                for j, val in enumerate(row_data, 1):
-                    cell = ws_data.cell(row=current_row, column=j, value=val)
-                    cell.alignment = center
-                    if use_fill:
-                        cell.fill = use_fill
-                current_row += 1
+            # Fila base para los encabezados de datos (baja según los atributos)
+            data_header_row = 1 + 3 + (max_attrs + 1 if max_attrs > 0 else 0) + 1
 
-        # Ajustar anchos de columna
-        for i, header in enumerate(all_headers, 1):
-            ws_data.column_dimensions[get_column_letter(i)].width = max(12, len(str(header)) + 4)
+            # 3. Escribir cada grupo (Ensayo/Prueba) en columnas separadas (lado a lado)
+            for info in ensayos_en_dia.values():
+                current_row = 1
+                header_text = f"Fecha: {fecha}\nEnsayo: {info['ensayo']}\nPrueba: {info['prueba']}"
+
+                # Ancho del bloque: 1 (Hora) + Variables + 1 (Comentario)
+                block_width = 1 + len(col_names) + 1
+
+                # Título principal del bloque
+                ws_data.merge_cells(start_row=current_row, start_column=col_offset,
+                                    end_row=current_row+2, end_column=col_offset + block_width - 1)
+                cell = ws_data.cell(row=current_row, column=col_offset, value=header_text)
+                cell.font = bold_font
+                cell.alignment = center_align
+                
+                # Le damos un colorcito de fondo suave para separar visualmente
+                cell.fill = PatternFill("solid", fgColor="E8F4F8") 
+                current_row += 3
+
+                # Escribir Atributos debajo del título general
+                if info['ensayo'] != "Sin Ensayo" and info['ensayo'] in ensayos_meta:
+                    ws_data.cell(row=current_row, column=col_offset, value="Atributo").font = bold_font
+                    ws_data.cell(row=current_row, column=col_offset+1, value="Valor").font = bold_font
+                    current_row += 1
+                    for attr in ensayos_meta[info['ensayo']]:
+                        ws_data.cell(row=current_row, column=col_offset, value=attr.get("atributo", ""))
+                        ws_data.cell(row=current_row, column=col_offset+1, value=attr.get("valor", ""))
+                        current_row += 1
+
+                # Escribir Encabezados de Datos (dinámico según la máquina)
+                data_headers = ["Hora"] + col_labels + ["Comentario"]
+                for i, header in enumerate(data_headers):
+                    c = ws_data.cell(row=data_header_row, column=col_offset + i, value=header)
+                    c.font = bold_font
+                    c.alignment = center_align
+                    # Ensanchar columnas
+                    ws_data.column_dimensions[get_column_letter(col_offset + i)].width = 15
+
+                # Escribir Filas de Datos
+                data_current_row = data_header_row + 1
+                for fila in info["filas"]:
+                    # Hora
+                    ws_data.cell(row=data_current_row, column=col_offset).value = fila["timestamp"].strftime("%H:%M:%S")
+
+                    # Variables dinámicas de los sensores
+                    for i, col in enumerate(col_names):
+                        ws_data.cell(row=data_current_row, column=col_offset + 1 + i).value = fila.get(col)
+
+                    # Comentario
+                    com = fila.get("comentario", "")
+                    ws_data.cell(row=data_current_row, column=col_offset + 1 + len(col_names)).value = com if com else ""
+
+                    data_current_row += 1
+
+                # Separación entre bloques: sumar el ancho del bloque + 1 columna en blanco
+                col_offset += block_width + 1
+
+        # Congelar paneles para poder scrollear sin perder los encabezados
+        ws_data.freeze_panes = ws_data.cell(row=data_header_row + 1, column=1)
 
         # Hoja de alarmas
-        ws_alarm = wb.create_sheet(title="Registro de Alarmas")
-        alarm_headers = ["Timestamp", "Evento", "Detalle", "Operador", "Ensayo", "Prueba"]
-        for i, h in enumerate(alarm_headers, 1):
-            cell = ws_alarm.cell(row=1, column=i, value=h)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = center
+        alarmas = self.get_alarmas()
+        if alarmas:
+            ws_alarm = wb.create_sheet(title="Registro de Alarmas")
+            alarm_headers = ["Fecha", "Hora", "Evento", "Detalle", "Operador", "Ensayo", "Prueba"]
+            for i, h in enumerate(alarm_headers, 1):
+                c = ws_alarm.cell(row=1, column=i, value=h)
+                c.font = bold_font
+                c.alignment = center_align
+                ws_alarm.column_dimensions[get_column_letter(i)].width = 20
 
-        for row_i, alarma in enumerate(self.get_alarmas(), 2):
-            row_data = [
-                alarma["timestamp"],
-                alarma["evento"],
-                alarma["detalle"],
-                alarma["operador"],
-                alarma["ensayo"],
-                alarma["prueba"],
-            ]
-            for col_i, val in enumerate(row_data, 1):
-                ws_alarm.cell(row=row_i, column=col_i, value=val)
-
-        for i in range(1, len(alarm_headers) + 1):
-            ws_alarm.column_dimensions[get_column_letter(i)].width = 20
-
-        # Hoja de atributos de ensayos (si hay metadata)
-        if ensayos_meta:
-            ws_ens = wb.create_sheet(title="Atributos de Ensayos")
-            ws_ens.cell(row=1, column=1, value="Ensayo").font = Font(bold=True)
-            ws_ens.cell(row=1, column=2, value="Atributo").font = Font(bold=True)
-            ws_ens.cell(row=1, column=3, value="Valor").font = Font(bold=True)
-            row_i = 2
-            for ensayo_nombre, attrs in ensayos_meta.items():
-                for attr in attrs:
-                    ws_ens.cell(row=row_i, column=1, value=ensayo_nombre)
-                    ws_ens.cell(row=row_i, column=2, value=attr.get("atributo", ""))
-                    ws_ens.cell(row=row_i, column=3, value=attr.get("valor", ""))
-                    row_i += 1
+            for row_i, a in enumerate(alarmas, 2):
+                row_data = [a["fecha"], a["hora"], a["evento"], a["detalle"], a["operador"], a["ensayo"], a["prueba"]]
+                for col_i, val in enumerate(row_data, 1):
+                    ws_alarm.cell(row=row_i, column=col_i, value=val)
 
         wb.save(filename)
         return filename

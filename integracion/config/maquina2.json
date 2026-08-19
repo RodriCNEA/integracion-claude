@@ -1,7 +1,7 @@
 {
   "db_file": "mediciones.db",
-  "watchdog_sec": 5.0,
-  "autofin_min": 30.0,
+  "watchdog_sec": 5000.0,
+  "autofin_min": 3000.0,
   "alarm_debounce": 10,
   "alarm_cooldown": 30,
   "plot_title": "RPM vs Tiempo",
@@ -11,12 +11,12 @@
   "plot_ymin": 0.0,
   "plot_ymax": 5000.0,
   "window_seconds": 120,
-  "brevo_api_key": "",
-  "brevo_email": "",
+  "brevo_api_key": "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",
+  "brevo_email": "pcg_12@outlook.com",
   "alarms": {
     "rpm_max": {
       "enabled": false,
-      "threshold": 2000.0,
+      "threshold": 8000.0,
       "debounce": 10,
       "cooldown_min": 30
     },
@@ -27,10 +27,19 @@
       "cooldown_min": 30
     },
     "temp_max_alta": {
-      "enabled": true,
+      "enabled": false,
       "threshold": 90.0,
       "debounce": 10,
       "cooldown_min": 30
+    },
+    "cable_fusible": {
+      "enabled": false,
+      "threshold": 0.0,
+      "debounce": 1,
+      "cooldown_min": 0
     }
-  }
+  },
+  "web_visible_vars": [
+    "rpm"
+  ]
 }

@@ -8,21 +8,21 @@
   "gauge_title": "Velocímetro",
   "gauge_min": 0.0,
   "gauge_max": 40000.0,
-  "plot_ymin": 32000.0,
-  "plot_ymax": 36000.0,
+  "plot_ymin": 29000.0,
+  "plot_ymax": 34000.0,
   "window_seconds": 120,
-  "brevo_api_key": "",
-  "brevo_email": "",
+  "brevo_api_key": "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",
+  "brevo_email": "pcg_12@outlook.com",
   "alarms": {
     "rpm_max": {
-      "enabled": false,
-      "threshold": 2000.0,
+      "enabled": true,
+      "threshold": 40000.0,
       "debounce": 10,
       "cooldown_min": 30
     },
     "rpm_min": {
-      "enabled": false,
-      "threshold": 100.0,
+      "enabled": true,
+      "threshold": 1000.0,
       "debounce": 10,
       "cooldown_min": 30
     },
@@ -34,9 +34,14 @@
     },
     "flujo": {
       "enabled": true,
-      "threshold": 0.0,
-      "debounce": 10,
+      "threshold": 0.5,
+      "debounce": 3,
       "cooldown_min": 30
     }
-  }
+  },
+  "web_visible_vars": [
+    "rpm",
+    "temp",
+    "flujo"
+  ]
 }

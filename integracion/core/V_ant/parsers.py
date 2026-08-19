@@ -198,32 +198,34 @@ _TEMP_CHANNELS: list[tuple[str, str, str]] = [
 
 class MultiTempParser(DataParser):
     """
-    Parsea el formato completo de la Máquina 2 (WiFi, Arduino Mega).
+    Parsea el formato de la Máquina 2 (WiFi, 7 sensores de temperatura).
 
-    Formato CSV esperado (10 campos):
-        rpm,t_sup,t_inf,t_cuna,t_estator,t_carcasa,t_amb_sup,t_amb_inf,rele,fusible
+    Formato esperado:
+        "1500,45.2,43.1,41.8,50.3,38.7,25.1,24.9"
+         rpm   t1    t2    t3    t4    t5   t6   t7
 
-        rpm      (float) — Velocidad en RPM
-        t1..t7   (float) — 7 temperaturas en °C
-        rele     (int)   — Estado del relé: 1=ON (seguro), 0=OFF (activó parada)
-        fusible  (int)   — Estado del cable fusible: 0=intacto, 1=CORTADO
-
-    Convención de almacenamiento para booleanos de seguridad:
-        cable_fusible = True  → cable intacto  (OK)
-        cable_fusible = False → cable CORTADO  (FALLA)
-        rele          = True  → relé ON        (seguro)
-        rele          = False → relé OFF       (parada activa)
+    El dict de salida incluye:
+        rpm        (float) — Velocidad en RPM
+        t_tapa_sup (float) — Temperatura tapa superior
+        t_tapa_inf (float) — Temperatura tapa inferior
+        t_cuna     (float) — Temperatura cuña
+        t_estator  (float) — Temperatura estator
+        t_carcasa  (float) — Temperatura carcasa
+        t_amb_sup  (float) — Temperatura ambiente superior
+        t_amb_inf  (float) — Temperatura ambiente inferior
+        temps_list (list)  — Lista ordenada de las 7 temperaturas (para gráficos)
+        temp_max   (float) — Temperatura máxima (para alarmas)
     """
 
     CHANNELS = _TEMP_CHANNELS
 
     @property
     def parser_name(self) -> str:
-        return "Multi-Temperatura WiFi (RPM + 7 Temps + Relé + Cable)"
+        return "Multi-Temperatura WiFi (RPM + 7 Temps)"
 
     @property
     def variable_names(self) -> list[str]:
-        return ["rpm"] + [key for key, _, _ in self.CHANNELS] + ["rele", "cable_fusible"]
+        return ["rpm"] + [key for key, _, _ in self.CHANNELS]
 
     @property
     def display_config(self) -> list[VarDisplay]:
@@ -240,18 +242,6 @@ class MultiTempParser(DataParser):
                     color=color, decimals=1, is_alarm_candidate=True
                 )
             )
-        configs += [
-            VarDisplay(
-                key="rele", label="Relé seguridad", unit="",
-                color="#aa00ff", decimals=0,
-                is_alarm_candidate=False, is_boolean=True
-            ),
-            VarDisplay(
-                key="cable_fusible", label="Cable fusible", unit="",
-                color="#ff5252", decimals=0,
-                is_alarm_candidate=True, is_boolean=True
-            ),
-        ]
         return configs
 
     def parse(self, raw: str) -> Optional[dict]:
@@ -280,14 +270,6 @@ class MultiTempParser(DataParser):
             # Campos de conveniencia para el sistema de alarmas y gráficos
             result["temps_list"] = temps
             result["temp_max"] = max(temps) if temps else 0.0
-
-            # Campo 8: relé (1=ON=seguro, 0=OFF=parada activa)
-            # Guardado como bool: True=seguro, False=apagado
-            result["rele"] = self._safe_bool(parts[8]) if len(parts) > 8 else True
-
-            # Campo 9: fusible (0=intacto, 1=CORTADO) — lógica INVERTIDA por INPUT_PULLUP
-            # Guardado como bool: True=intacto/OK, False=CORTADO/FALLA
-            result["cable_fusible"] = not self._safe_bool(parts[9]) if len(parts) > 9 else True
 
             return result
         except Exception:

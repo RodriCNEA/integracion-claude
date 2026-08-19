@@ -1,0 +1,16 @@
+{
+  "hola": [
+    {
+      "atributo": "Prototipo",
+      "valor": "C17"
+    },
+    {
+      "atributo": "Rotor",
+      "valor": 89
+    },
+    {
+      "atributo": "Tensión (V)",
+      "valor": "55v"
+    }
+  ]
+}

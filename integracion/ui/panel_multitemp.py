@@ -49,6 +49,8 @@ class PanelMultiTemp(MaquinaPanel):
         self._udp_entry = ttk.Entry(inner, textvariable=self._udp_port_var,
                                      width=7, justify="center")
         self._udp_entry.pack(side=tk.LEFT, padx=(4, 2))
+        # NUEVO ATAJO TECLADO:
+        self._udp_entry.bind("<Return>", lambda e: self._toggle_wifi())
 
         self._btn_wifi = ttk.Button(inner, text="Activar WiFi",
                                      style="Accent.TButton",
@@ -104,6 +106,26 @@ class PanelMultiTemp(MaquinaPanel):
     # (la conexión la maneja _toggle_wifi)
     def _connect(self) -> None:
         pass
+
+    # -------------------------------------------------------------------
+    # Watchdog WiFi — sobreescribe los callbacks del base
+    # -------------------------------------------------------------------
+    def _on_conn_lost(self) -> None:
+        """El watchdog detectó que no llegan datos UDP."""
+        self._led_conn.set_error("Sin datos UDP")
+        if hasattr(self, "_led_wifi"):
+            self._led_wifi.config(
+                text="●  Sin datos UDP (watchdog)",
+                fg=THEME["red"])
+
+    def _on_conn_restored(self) -> None:
+        """Volvieron datos UDP después de una interrupción."""
+        self._led_conn.set_ok("Grabando...")
+        if hasattr(self, "_led_wifi") and self._wifi_active:
+            port = self._udp_port_var.get()
+            self._led_wifi.config(
+                text=f"●  WiFi activo  (UDP:{port})",
+                fg=THEME["green"])
 
     # -------------------------------------------------------------------
     # Sensores de temperatura
